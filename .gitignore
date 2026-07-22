@@ -1,0 +1,8 @@
+# ignore everything
+*
+!.gitignore
+
+#emacs configs
+!.emacs
+!.emacs.rc/
+!.emacs.rc/*
