@@ -1,3 +1,18 @@
+(require 'package)
+(add-to-list 'package-archives
+             '("melpa" . "https://melpa.org/packages/")
+             t)
+(package-initialize)
+
+(unless package-archive-contents
+  (package-refresh-contents))
+
+(unless (package-installed-p 'use-package)
+  (package-install 'use-package))
+
+(require 'use-package)
+(setq use-package-always-ensure t)
+
 (setq inhibit-startup-message t)
 (setq visible-bell nil)
 
@@ -8,6 +23,7 @@
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
 
+(use-package solarized-theme)
 ;;(load-theme 'modus-vivendi t)
 (load-theme 'solarized-selenized-light t)
 (setq visible-bell t)
@@ -27,14 +43,10 @@
         (replace-match "")))))
 
 
-(require 'package)
-(add-to-list 'package-archives
-             '("melpa" . "https://melpa.org/packages/")
-             t)
-(package-initialize)
-
 (setq custom-file (locate-user-emacs-file "custom.el"))
 (load custom-file 'noerror)
+
+(use-package dap-mode)
 (require 'dap-cpptools)
 (require 'dap-codelldb)
 (require 'dap-launch)
