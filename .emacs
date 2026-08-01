@@ -47,7 +47,11 @@
          (display-buffer-reuse-window
           display-buffer-same-window))))
 
-(use-package eat)
+;;(use-package eat :ensure t)
+;;(add-hook 'eshell-first-time-mode-hook
+;;          #'eat-eshell-visual-command-mode)
+
+
 (use-package multiple-cursors)
 ;;(use-package vterm :ensure t)
 
@@ -287,3 +291,13 @@ Turned on/off automatically as dap-mode sessions start/end; see
 	 (c-mode      . eglot-ensure)
 	 (c++-mode    . eglot-ensure)))
 
+;; choose current line and save it to the copy buffer
+(defun my-copy-file-line ()
+  (interactive)
+  (let ((text (format "%s:%d"
+                      (or (buffer-file-name) (buffer-name))
+                      (line-number-at-pos))))
+    (kill-new text)
+    (message "%s" text)))
+
+(global-set-key (kbd "C-c l") #'my-copy-file-line)
