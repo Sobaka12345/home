@@ -47,6 +47,7 @@
          (display-buffer-reuse-window
           display-buffer-same-window))))
 
+(use-package eat)
 (use-package multiple-cursors)
 ;;(use-package vterm :ensure t)
 
