@@ -13,12 +13,50 @@
 (require 'use-package)
 (setq use-package-always-ensure t)
 
+(when (eq system-type 'windows-nt)
+
+  (defun vspshell ()
+  "Open a Visual Studio Developer PowerShell."
+  (interactive)
+  (let ((explicit-shell-file-name
+         "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+        (explicit-powershell.exe-args
+         '("-NoLogo"
+		   "-NoExit"
+           "-File"
+           "C:\\Program Files\\Microsoft Visual Studio\\18\\Professional\\Common7\\Tools\\Launch-VsDevShell.ps1")))
+    (call-interactively #'shell)))
+
+(defun vscmdshell ()
+  (interactive)
+  (let ((explicit-shell-file-name
+         "C:/Windows/System32/cmd.exe")
+		(w32-use-native-shell t)
+		;;(w32-quote-process-args nil)
+		(shell-command-switch "/c")
+        (explicit-cmd.exe-args
+         '("/k"
+           "C:\\Program Files\\Microsoft Visual Studio\\18\\Professional\\VC\\Auxiliary\\Build\\vcvars64.bat")))
+    (shell "*VS Command Prompt*")))
+  )
+
+(setq pop-up-frames nil)
+
+(setq display-buffer-alist
+      '((".*"
+         (display-buffer-reuse-window
+          display-buffer-same-window))))
+
+(use-package multiple-cursors)
+;;(use-package vterm :ensure t)
+
 (setq inhibit-startup-message t)
 (setq visible-bell nil)
 
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
 (global-display-line-numbers-mode 1)
+(global-visual-line-mode 1)
 
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
