@@ -66,6 +66,8 @@
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
 
+(use-package rg)
+
 (use-package solarized-theme)
 ;;(load-theme 'modus-vivendi t)
 (load-theme 'solarized-selenized-light t)
