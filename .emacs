@@ -57,6 +57,7 @@
 
 (setq inhibit-startup-message t)
 (setq visible-bell nil)
+(setq ring-bell-function #'ignore)
 
 (tool-bar-mode -1)
 (scroll-bar-mode -1)
@@ -71,7 +72,6 @@
 (use-package solarized-theme)
 ;;(load-theme 'modus-vivendi t)
 (load-theme 'solarized-selenized-light t)
-(setq visible-bell t)
 
 (load-file "~/.emacs.rc/jai-mode.el")
 (global-set-key (kbd "<backtab>") 'un-indent-by-removing-4-spaces)
@@ -286,12 +286,21 @@ Turned on/off automatically as dap-mode sessions start/end; see
   (corfu-auto t)                 ;; Enable auto-completion as you type
   (corfu-quit-no-match 'separator)) ;; Quit cleanly if no match
 
+(use-package corfu-terminal
+  :ensure t
+  :after corfu
+  :config
+  (corfu-terminal-mode +1))
+
 ;; 2. Enable Eglot (Built-in) for your programming language
 (use-package eglot
   :hook ((python-mode . eglot-ensure)   ;; Hook to your languages
 	 (rust-mode   . eglot-ensure)
 	 (c-mode      . eglot-ensure)
 	 (c++-mode    . eglot-ensure)))
+
+(setq eglot-ignored-server-capabilities
+      '(:documentOnTypeFormattingProvider))
 
 ;; choose current line and save it to the copy buffer
 (defun my-copy-file-line ()
