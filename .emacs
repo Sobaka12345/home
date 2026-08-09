@@ -47,6 +47,18 @@
          (display-buffer-reuse-window
           display-buffer-same-window))))
 
+;; Exception to the same-window policy above, for dap-mode's preLaunchTask
+;; compile-log buffers only: with the blanket policy, these always take
+;; over the current (often sole) window instead of splitting, which makes
+;; `dap-debug-run-task' try to `delete-window' the only ordinary window
+;; left in the frame once the task finishes -- that errors and aborts the
+;; callback that actually starts the debug session, so it silently never
+;; launches. Let just these buffers split instead.
+(add-to-list 'display-buffer-alist
+             '("\\`\\*DAP compilation:"
+               (display-buffer-reuse-window
+                display-buffer-below-selected)))
+
 ;;(use-package eat :ensure t)
 ;;(add-hook 'eshell-first-time-mode-hook
 ;;          #'eat-eshell-visual-command-mode)
@@ -96,6 +108,15 @@
 (require 'dap-codelldb)
 (require 'dap-launch)
 (require 'dap-tasks)
+;; dap-ui.el uses the 'breakpoint fringe bitmap for the GUI breakpoint
+;; marker (dap-ui--breakpoint-visuals's :bitmap), but never requires
+;; gdb-mi.el itself -- that's the library that actually defines it via
+;; `define-fringe-bitmap'. Without it the bitmap reference is unresolved
+;; and the GUI marker silently doesn't render. This is a pre-existing gap
+;; in dap-ui, not something the TTY margin patch below caused -- it never
+;; surfaced before because -nw testing goes through the margin path
+;; instead of this fringe-bitmap path.
+(require 'gdb-mi)
 (dap-mode 1)
 
 ;; `dap-launch-find-launch-json' calls `(lsp-workspace-root)' with no
@@ -109,6 +130,73 @@
             (lambda (orig-fn &optional path)
               (funcall orig-fn (or path (buffer-file-name) default-directory))))
 (dap-ui-mode 1)
+
+;; `dap-ui--make-overlay' only ever marks a breakpoint/current-line via the
+;; fringe, gated behind `(window-system)' -- fringes don't exist in a
+;; terminal frame at all, so in `-nw' mode no marker is drawn anywhere.
+;; Add a TTY fallback: put the same single-character marker (a "." for a
+;; breakpoint, ">" for the current execution line -- see
+;; `dap-ui--breakpoint-visuals' / `dap-ui--set-debug-marker') in the left
+;; margin instead, which does render in a terminal, right next to
+;; `display-line-numbers-mode's column like the fringe marker would in a
+;; GUI frame. dap-ui's own :fringe faces are tuned for a small GUI fringe
+;; bitmap (e.g. dark green) and read as too dim for a plain margin
+;; character in a terminal, so map them to brighter dedicated faces
+;; instead of reusing them as-is.
+;; :inverse-video gives a solid colored block instead of plain colored
+;; text -- a real bigger glyph isn't possible in a terminal (every cell
+;; in a TTY grid is a fixed size, there's no per-character font scaling
+;; the way a GUI frame has), so this is the closest terminal equivalent.
+(defface my-dap-margin-breakpoint-verified
+  '((t :foreground "red1" :weight bold :inverse-video t))
+  "TTY margin face for a verified (active) breakpoint.")
+(defface my-dap-margin-breakpoint-pending
+  '((t :foreground "orange" :weight bold :inverse-video t))
+  "TTY margin face for a pending/unverified breakpoint.")
+(defface my-dap-margin-current-line
+  '((t :foreground "cyan" :weight bold :inverse-video t))
+  "TTY margin face for the current execution line marker.")
+(defun my-dap-margin-face (fringe-face)
+  "Map a dap-ui :fringe face to a brighter one for the TTY margin."
+  (pcase fringe-face
+    ('dap-ui-breakpoint-verified-fringe 'my-dap-margin-breakpoint-verified)
+    ('breakpoint-disabled               'my-dap-margin-breakpoint-pending)
+    ('dap-ui-compile-errline            'my-dap-margin-current-line)
+    (_ fringe-face)))
+(defun my-dap-margin-char (fringe-face default-char)
+  "Map a dap-ui :fringe face to a TTY margin character.
+0 = verified/active breakpoint, O = pending/disabled breakpoint;
+anything else (e.g. the current-line marker) keeps its default char."
+  (pcase fringe-face
+    ('dap-ui-breakpoint-verified-fringe "0")
+    ('breakpoint-disabled               "O")
+    (_ default-char)))
+(defun my-dap-ui--make-overlay (beg end visuals &optional mouse-face buf)
+  (let ((ov (make-overlay beg end buf t t)))
+    (overlay-put ov 'face          (plist-get visuals :face))
+    (overlay-put ov 'mouse-face    mouse-face)
+    (overlay-put ov 'dap-ui-overlay t)
+    (overlay-put ov 'priority (plist-get visuals :priority))
+    (when-let ((char (plist-get visuals :char)))
+      (if (window-system)
+          (overlay-put ov 'before-string
+                       (propertize char 'display
+                                   (list 'left-fringe
+                                         (plist-get visuals :bitmap)
+                                         (plist-get visuals :fringe))))
+        (let ((markbuf (or buf (current-buffer))))
+          (with-current-buffer markbuf
+            (setq-local left-margin-width 1)
+            (dolist (win (get-buffer-window-list markbuf nil t))
+              (set-window-margins win left-margin-width)))
+          (overlay-put ov 'before-string
+                       (propertize " " 'display
+                                   (list '(margin left-margin)
+                                         (propertize (my-dap-margin-char (plist-get visuals :fringe) char)
+                                                     'face
+                                                     (my-dap-margin-face (plist-get visuals :fringe)))))))))
+    ov))
+(advice-add 'dap-ui--make-overlay :override #'my-dap-ui--make-overlay)
 
 ;; Work around a dap-mode bug: breakpoints restored from
 ;; `dap-breakpoints-file' at startup (via `dap--after-initialize', just
