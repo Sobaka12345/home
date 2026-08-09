@@ -418,11 +418,16 @@ Turned on/off automatically as dap-mode sessions start/end; see
   (and (eq system-type 'gnu/linux)
        (getenv "DISPLAY")
        (not (getenv "WAYLAND_DISPLAY"))))
-(use-package xclip
-  :ensure t
-  :if (and (not (display-graphic-p)) (my-x11-linux-p))
-  :config
-  (xclip-mode 1))
+;; Guard outside `use-package' itself, not via `:if' -- `:if' still let
+;; `:ensure' attempt installation on non-matching systems (broke on
+;; Windows), since apparently it doesn't gate the ensure step. Wrapping
+;; the whole form means `use-package'/`:ensure' never runs at all
+;; elsewhere.
+(when (and (not (display-graphic-p)) (my-x11-linux-p))
+  (use-package xclip
+    :ensure t
+    :config
+    (xclip-mode 1)))
 
 ;; C-s: seed isearch with the active region's text, if it's a single-line region
 (defun my-isearch-yank-string-preserve-case (string)
