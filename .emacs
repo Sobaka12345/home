@@ -410,10 +410,17 @@ Turned on/off automatically as dap-mode sessions start/end; see
 (setq eglot-ignored-server-capabilities
       '(:documentOnTypeFormattingProvider))
 
-;; bridge kill-ring <-> system clipboard when running emacs -nw (uses xclip binary)
+;; bridge kill-ring <-> system clipboard when running emacs -nw (uses the
+;; xclip binary, which talks to the X11 clipboard specifically -- not
+;; Wayland, macOS, or Windows)
+(defun my-x11-linux-p ()
+  "Non-nil if running on Linux under an X11 session (not Wayland)."
+  (and (eq system-type 'gnu/linux)
+       (getenv "DISPLAY")
+       (not (getenv "WAYLAND_DISPLAY"))))
 (use-package xclip
   :ensure t
-  :unless (display-graphic-p)
+  :if (and (not (display-graphic-p)) (my-x11-linux-p))
   :config
   (xclip-mode 1))
 
