@@ -67,7 +67,7 @@
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
 
-(use-package rg)
+(use-package rg :ensure t)
 
 (use-package solarized-theme)
 ;;(load-theme 'modus-vivendi t)
@@ -97,6 +97,17 @@
 (require 'dap-launch)
 (require 'dap-tasks)
 (dap-mode 1)
+
+;; `dap-launch-find-launch-json' calls `(lsp-workspace-root)' with no
+;; argument, which falls back to `(buffer-file-name)'. That's nil for
+;; buffers not visiting a file -- e.g. the *DAP compilation:...* log
+;; buffer used to run preLaunchTask -- so while that buffer is current,
+;; dap-mode can't resolve the project root and can't find launch.json
+;; at all. Fall back to `default-directory' (which the compile buffer
+;; already has set correctly to the project root) when there's no file.
+(advice-add 'lsp-workspace-root :around
+            (lambda (orig-fn &optional path)
+              (funcall orig-fn (or path (buffer-file-name) default-directory))))
 (dap-ui-mode 1)
 
 ;; Work around a dap-mode bug: breakpoints restored from
@@ -290,17 +301,54 @@ Turned on/off automatically as dap-mode sessions start/end; see
   :ensure t
   :after corfu
   :config
-  (corfu-terminal-mode +1))
+  (corfu-terminal-mode +1)
+  ;; Push the popup one extra line below the point row. corfu-terminal has
+  ;; no vertical-offset option of its own; every placement goes through
+  ;; `popon-x-y-at-posn', so shift its returned row here.
+  (advice-add 'popon-x-y-at-posn :filter-return
+              (lambda (xy) (when xy (cons (car xy) (1+ (cdr xy)))))))
 
 ;; 2. Enable Eglot (Built-in) for your programming language
 (use-package eglot
   :hook ((python-mode . eglot-ensure)   ;; Hook to your languages
 	 (rust-mode   . eglot-ensure)
 	 (c-mode      . eglot-ensure)
-	 (c++-mode    . eglot-ensure)))
+	 (c++-mode    . eglot-ensure))
+  :config
+  ;; never let clangd auto-insert #include lines on completion
+  (add-to-list 'eglot-server-programs
+               '((c++-mode c-mode) . ("clangd" "--header-insertion=never"))))
 
 (setq eglot-ignored-server-capabilities
       '(:documentOnTypeFormattingProvider))
+
+;; bridge kill-ring <-> system clipboard when running emacs -nw (uses xclip binary)
+(use-package xclip
+  :ensure t
+  :unless (display-graphic-p)
+  :config
+  (xclip-mode 1))
+
+;; C-s: seed isearch with the active region's text, if it's a single-line region
+(defun my-isearch-yank-string-preserve-case (string)
+  "Pull STRING into the search string as-is, without `isearch-yank-string''s downcasing."
+  (when isearch-regexp (setq string (regexp-quote string)))
+  (setq isearch-yank-flag t)
+  (isearch-process-search-string
+   string (mapconcat #'isearch-text-char-description string "")))
+
+(defun my-isearch-forward-or-region (&optional regexp-p no-recursive-edit)
+  (interactive "P\np")
+  (if (and (use-region-p)
+           (= (line-number-at-pos (region-beginning))
+              (line-number-at-pos (region-end))))
+      (let ((string (buffer-substring-no-properties (region-beginning) (region-end))))
+        (deactivate-mark)
+        (isearch-mode t regexp-p nil (not no-recursive-edit))
+        (my-isearch-yank-string-preserve-case string))
+    (isearch-forward regexp-p no-recursive-edit)))
+
+(global-set-key (kbd "C-s") #'my-isearch-forward-or-region)
 
 ;; choose current line and save it to the copy buffer
 (defun my-copy-file-line ()
