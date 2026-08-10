@@ -382,8 +382,10 @@ Turned on/off automatically as dap-mode sessions start/end; see
   :init
   (global-corfu-mode)
   :custom
-  (corfu-auto t)                 ;; Enable auto-completion as you type
+  (corfu-auto nil)  ; disable auto-popup
+  ;;(corfu-auto t)                 ;; Enable auto-completion as you type
   (corfu-quit-no-match 'separator)) ;; Quit cleanly if no match
+(define-key corfu-mode-map (kbd "C-<tab>") 'completion-at-point)
 
 (use-package corfu-terminal
   :ensure t
@@ -401,7 +403,8 @@ Turned on/off automatically as dap-mode sessions start/end; see
   :hook ((python-mode . eglot-ensure)   ;; Hook to your languages
 	 (rust-mode   . eglot-ensure)
 	 (c-mode      . eglot-ensure)
-	 (c++-mode    . eglot-ensure))
+	 (c++-mode    . eglot-ensure)
+	 (glsl-mode   . eglot-ensure))
   :config
   ;; never let clangd auto-insert #include lines on completion
   (add-to-list 'eglot-server-programs
