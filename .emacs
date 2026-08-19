@@ -75,6 +75,12 @@
 (scroll-bar-mode -1)
 (global-display-line-numbers-mode 1)
 (global-visual-line-mode 1)
+;; Enable savehist-mode to persist minibuffer history
+(setq savehist-file "~/.emacs.d/savehist")
+(savehist-mode 1)
+
+;; Optional: Keep more history items
+(setq history-length 100)
 
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
