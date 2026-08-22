@@ -87,9 +87,17 @@
 
 (use-package rg :ensure t)
 
-(use-package solarized-theme)
-;;(load-theme 'modus-vivendi t)
-(load-theme 'solarized-selenized-light t)
+(if (= (display-color-cells) 16)
+    (progn
+	  (use-package base16-theme)
+	  (load-theme 'base16-default-dark t)
+	  (set-face-attribute 'region nil
+                      :background "#3c4451"
+                      :foreground "#ffffff"))
+  (progn
+	(use-package solarized-theme)
+	(load-theme 'solarized-selenized-light t))
+  )
 
 (load-file "~/.emacs.rc/jai-mode.el")
 (global-set-key (kbd "<backtab>") 'un-indent-by-removing-4-spaces)
