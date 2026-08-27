@@ -344,7 +344,7 @@ anything else (e.g. the current-line marker) keeps its default char."
 ;; `window-sides-vertical' is nil by default -- ends up to the right
 ;; of the bottom-docked adapter log window.
 (setq dap-auto-configure-features '(locals expressions sessions))
-(setq dap-auto-show-output nil)
+(setq dap-auto-show-output 1)
 (dap-auto-configure-mode 1)
 
 ;; the CodeLLDB adapter process's own log (mode-line "Debug Adapter",
@@ -363,6 +363,7 @@ anything else (e.g. the current-line marker) keeps its default char."
                (window-height . 0.2)))
 
 (desktop-save-mode 1)
+(savehist-mode 1)
 
 (global-set-key (kbd "C-c C-<left>")  'windmove-left)
 (global-set-key (kbd "C-c C-<right>") 'windmove-right)
