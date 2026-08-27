@@ -72,6 +72,7 @@
 (setq ring-bell-function #'ignore)
 
 (tool-bar-mode -1)
+(menu-bar-mode -1)
 (scroll-bar-mode -1)
 (global-display-line-numbers-mode 1)
 (global-visual-line-mode 1)
@@ -92,11 +93,34 @@
 	  (use-package base16-theme)
 	  (load-theme 'base16-default-dark t)
 	  (set-face-attribute 'region nil
-                      :background "#3c4451"
-                      :foreground "#ffffff"))
+						  :background "#3c4451"
+						  :foreground "#ffffff"))
   (progn
 	(use-package solarized-theme)
-	(load-theme 'solarized-selenized-light t))
+
+    (defvar my-light-theme 'solarized-selenized-light)
+    (defvar my-dark-theme 'modus-vivendi)
+
+    (defun my-set-theme-by-time ()
+      "Set the theme according to the current time."
+      (let ((hour (string-to-number (format-time-string "%H"))))
+        (mapc #'disable-theme custom-enabled-themes)
+        (load-theme (if (and (>= hour 7) (< hour 20))
+                        my-light-theme
+                      my-dark-theme)
+                    t)))
+	(my-set-theme-by-time)
+	
+	(defun switch-theme-by-time ()
+	  "Toggle between the configured light and dark themes."
+	  (interactive)
+	  (let ((next-theme
+			 (if (custom-theme-enabled-p my-dark-theme)
+				 my-light-theme
+			   my-dark-theme)))
+		(mapc #'disable-theme custom-enabled-themes)
+		(load-theme next-theme t)))
+	)
   )
 
 (load-file "~/.emacs.rc/jai-mode.el")
