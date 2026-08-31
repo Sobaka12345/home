@@ -98,7 +98,7 @@
   (progn
 	(use-package solarized-theme)
 
-    (defvar my-light-theme 'solarized-selenized-light)
+    (defvar my-light-theme 'modus-operandi-tinted)
     (defvar my-dark-theme 'modus-vivendi)
 
     (defun my-set-theme-by-time ()
@@ -413,8 +413,54 @@ Turned on/off automatically as dap-mode sessions start/end; see
   (unless (seq-some #'dap--session-running (dap--get-sessions))
     (my-dap-active-mode -1)))
 
-(add-hook 'dap-session-created-hook #'my-dap-active-mode-enable)
-(add-hook 'dap-terminated-hook #'my-dap-active-mode-disable)
+(add-hook 'dap-mode-hook
+          (lambda ()
+            (if dap-mode
+                (my-dap-active-mode-enable)
+              (my-dap-active-mode-disable))))
+
+;;(add-hook 'dap-session-created-hook #'my-dap-active-mode-enable)
+;;(add-hook 'dap-terminated-hook #'my-dap-active-mode-disable)
+
+(global-subword-mode 1)
+
+(defun my/forward-word-snap-at-eol ()
+  "Move forward a word, snapping to EOL. If already at EOL, cross to the next line."
+  (interactive "^")
+  (let ((eol-pos (line-end-position)))
+    (cond
+     ;; 1. If already at EOL, do a normal forward-word to cross the line boundary
+     ((= (point) eol-pos)
+      (forward-word 1))
+     ;; 2. If normal movement would overshoot EOL, snap exactly to EOL instead
+     ((save-excursion (forward-word 1) (> (point) eol-pos))
+      (goto-char eol-pos))
+     ;; 3. Otherwise, just do a normal word movement within the line
+     (t
+      (forward-word 1)))))
+
+(defun my/backward-word-snap-at-bol ()
+  "Move backward a word, snapping to BOL. If already at BOL, cross to the previous line."
+  (interactive "^")
+  (let ((bol-pos (line-beginning-position)))
+    (cond
+     ;; 1. If already at BOL, do a normal backward-word to cross the line boundary
+     ((= (point) bol-pos)
+      (backward-word 1))
+     ;; 2. If normal movement would overshoot BOL, snap exactly to BOL instead
+     ((save-excursion (backward-word 1) (< (point) bol-pos))
+      (goto-char bol-pos))
+     ;; 3. Otherwise, just do a normal word movement within the line
+     (t
+      (backward-word 1)))))
+
+;; Bind to traditional Alt (Meta) keybindings
+(global-set-key (kbd "M-f") #'my/forward-word-snap-at-eol)
+(global-set-key (kbd "M-b") #'my/backward-word-snap-at-bol)
+
+;; Bind to standard Ctrl + Arrow keybindings if preferred
+(global-set-key (kbd "<C-right>") #'my/forward-word-snap-at-eol)
+(global-set-key (kbd "<C-left>")  #'my/backward-word-snap-at-bol)
 
 (use-package corfu
   :ensure t
@@ -502,3 +548,14 @@ Turned on/off automatically as dap-mode sessions start/end; see
     (message "%s" text)))
 
 (global-set-key (kbd "C-c l") #'my-copy-file-line)
+
+(use-package agent-shell :ensure t)
+(with-eval-after-load 'agent-shell
+  (add-hook 'agent-shell-mode-hook
+            (lambda ()
+              ;; First argument: decode output from Cursor's ACP process
+              ;; Second argument: encode input sent to Cursor's ACP process
+              (set-buffer-process-coding-system 'utf-8-dos 'utf-8-dos))))
+(when (eq system-type 'windows-nt)
+  ;; Fallback font specifically for unicode symbols without breaking your primary font
+  (set-fontset-font t 'symbol (font-spec :family "Segoe UI Symbol")))
