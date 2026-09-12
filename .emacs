@@ -365,6 +365,37 @@ anything else (e.g. the current-line marker) keeps its default char."
 (desktop-save-mode 1)
 (savehist-mode 1)
 
+;; `desktop-read' runs from `after-init-hook', i.e. after the
+;; time-of-day theme above has already been loaded for this session.
+;; It restores each frame's `background-color'/`foreground-color'
+;; *frame parameters* verbatim from the desktop file (see
+;; `frameset-filter-alist': those two go through
+;; `frameset-filter-sanitize-color', not `frameset-filter-shelve-param',
+;; so they're applied directly, independent of whichever theme is
+;; actually active). If the desktop was last saved during a
+;; differently-themed session (e.g. saved at night, reopened by day),
+;; that stale background/foreground gets slapped back onto the main
+;; text area while everything else (fringe, mode-line, margins --
+;; the "sides") still reflects the theme just loaded, producing a
+;; mixed light/dark look. Force the frame's color parameters back in
+;; sync with the active theme's `default' face once desktop restore
+;; finishes.
+;;
+;; Reading back `(face-attribute 'default :background)' and writing
+;; it into the frame parameter (an earlier attempt at this fix) does
+;; NOT work: setting the `background-color'/`foreground-color' frame
+;; parameter directly changes what `face-attribute' reports for that
+;; frame too (confirmed empirically), so that approach just re-reads
+;; the already-stale value and writes it right back -- a no-op.
+;; `enable-theme' on the theme that's already active, however, forces
+;; Emacs to reassert the real colors (also confirmed empirically:
+;; after corrupting the frame parameter, re-`enable-theme'-ing
+;; restores it), so re-enable whichever theme(s) are currently
+;; enabled instead of trying to read a color back out.
+(defun my-resync-frame-colors-with-theme ()
+  (mapc #'enable-theme custom-enabled-themes))
+(add-hook 'desktop-after-read-hook #'my-resync-frame-colors-with-theme)
+
 (global-set-key (kbd "C-c C-<left>")  'windmove-left)
 (global-set-key (kbd "C-c C-<right>") 'windmove-right)
 (global-set-key (kbd "C-c C-<up>")    'windmove-up)
