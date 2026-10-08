@@ -129,7 +129,11 @@ revert automatically and retry BODY."
           (lambda ()
             (local-set-key (kbd "C-c f") #'my/clang-format-buffer-or-region)))
 
-(use-package rg :ensure t)
+;; rg.el requires Emacs 28.1+; skip it entirely on older Emacs instead
+;; of letting package-install error out and abort the rest of init.
+(use-package rg
+  :ensure t
+  :if (version<= "28.1" emacs-version))
 
 (if (= (display-color-cells) 16)
     (progn
