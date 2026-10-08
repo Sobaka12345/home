@@ -86,6 +86,33 @@
 (setq-default tab-width 4)
 (setq-default c-basic-offset 4)
 
+;; keep #define/#if at column 0 and stop CC Mode from fighting manual
+;; alignment inside multi-line macro bodies
+(add-hook 'c-mode-common-hook
+          (lambda ()
+            (c-set-offset 'cpp-macro 0)
+            (c-set-offset 'cpp-macro-cont 'c-lineup-dont-change)))
+(setq c-auto-align-backslashes nil)
+
+;; CC Mode's own electric keys (on { } : ; # *) reindent independently
+;; of `electric-indent-mode'; turn those off too so TAB is the only
+;; thing that ever reindents a line
+(setq-default c-electric-flag nil)
+
+;; clang-format: on demand only, bound to a key -- never automatic.
+;; Reads .clang-format by walking up from the buffer's directory, same
+;; as running the clang-format binary directly.
+(load "/usr/share/clang/clang-format.el")
+(defun my/clang-format-buffer-or-region ()
+  "Run clang-format on the active region, or the whole buffer otherwise."
+  (interactive)
+  (if (use-region-p)
+      (clang-format-region (region-beginning) (region-end))
+    (clang-format-buffer)))
+(add-hook 'c-mode-common-hook
+          (lambda ()
+            (local-set-key (kbd "C-c f") #'my/clang-format-buffer-or-region)))
+
 (use-package rg :ensure t)
 
 (if (= (display-color-cells) 16)
@@ -363,6 +390,11 @@ anything else (e.g. the current-line marker) keeps its default char."
                (window-height . 0.2)))
 
 (desktop-save-mode 1)
+;; desktop restores each frame's saved background/foreground-color
+;; parameters *after* init finishes, which can reapply yesterday's
+;; theme colors on top of today's; reload the daytime theme once more
+;; afterward so it has the last word
+(add-hook 'desktop-after-read-hook #'my-set-theme-by-time)
 (savehist-mode 1)
 
 ;; `desktop-read' runs from `after-init-hook', i.e. after the
@@ -444,11 +476,14 @@ Turned on/off automatically as dap-mode sessions start/end; see
   (unless (seq-some #'dap--session-running (dap--get-sessions))
     (my-dap-active-mode -1)))
 
-(add-hook 'dap-mode-hook
-          (lambda ()
-            (if dap-mode
-                (my-dap-active-mode-enable)
-              (my-dap-active-mode-disable))))
+(my-dap-active-mode-enable)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; (add-hook 'dap-mode-hook						 ;;
+;;           (lambda ()							 ;;
+;;             (if dap-mode						 ;;
+;;                 (my-dap-active-mode-enable)	 ;;
+;;               (my-dap-active-mode-disable)))) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;(add-hook 'dap-session-created-hook #'my-dap-active-mode-enable)
 ;;(add-hook 'dap-terminated-hook #'my-dap-active-mode-disable)
@@ -514,20 +549,48 @@ Turned on/off automatically as dap-mode sessions start/end; see
   (advice-add 'popon-x-y-at-posn :filter-return
               (lambda (xy) (when xy (cons (car xy) (1+ (cdr xy)))))))
 
-;; 2. Enable Eglot (Built-in) for your programming language
-(use-package eglot
-  :hook ((python-mode . eglot-ensure)   ;; Hook to your languages
-	 (rust-mode   . eglot-ensure)
-	 (c-mode      . eglot-ensure)
-	 (c++-mode    . eglot-ensure)
-	 (glsl-mode   . eglot-ensure))
+;; 2. Enable lsp-mode as the *primary* LSP client. dap-mode/lsp-treemacs
+;; already hard-depend on lsp-mode as a library, and any lsp-mode-specific
+;; command silently starts a second, independent lsp-mode client on top
+;; of eglot's -- two clangd connections on the same buffer corrupt
+;; flymake's backend state ("Can't find state for
+;; lsp-diagnostics--flymake-backend"). Standardizing on lsp-mode avoids
+;; that; eglot is disabled below for now.
+(use-package lsp-mode
+  :hook ((python-mode . lsp-deferred)
+         (rust-mode   . lsp-deferred)
+         (c-mode      . lsp-deferred)
+         (c++-mode    . lsp-deferred)
+         (glsl-mode   . lsp-deferred))
+  :commands (lsp lsp-deferred)
   :config
   ;; never let clangd auto-insert #include lines on completion
-  (add-to-list 'eglot-server-programs
-               '((c++-mode c-mode) . ("clangd" "--header-insertion=never"))))
+  (setq lsp-clients-clangd-args '("--header-insertion=never"))
+  ;; we use corfu, not company -- lsp-mode's CAPF wiring (what corfu
+  ;; actually reads from) happens unconditionally regardless of this
+  ;; setting; :none just skips its company-specific auto-setup path,
+  ;; which otherwise warns on every buffer since company isn't installed
+  (setq lsp-completion-provider :none)
+  ;; same reason eglot's on-type formatting was blocked earlier: keep
+  ;; all reformatting manual/key-triggered, never automatic on keypress
+  (setq lsp-enable-on-type-formatting nil))
 
-(setq eglot-ignored-server-capabilities
-      '(:documentOnTypeFormattingProvider))
+;; eglot disabled for now -- see note above
+;; (use-package eglot
+;;   :hook ((python-mode . eglot-ensure)   ;; Hook to your languages
+;; 	 (rust-mode   . eglot-ensure)
+;; 	 (c-mode      . eglot-ensure)
+;; 	 (c++-mode    . eglot-ensure)
+;; 	 (glsl-mode   . eglot-ensure))
+;;   :config
+;;   ;; never let clangd auto-insert #include lines on completion
+;;   (add-to-list 'eglot-server-programs
+;;                '((c++-mode c-mode) . ("clangd" "--header-insertion=never"))))
+;;
+;; (setq eglot-ignored-server-capabilities
+;;       '(:documentOnTypeFormattingProvider))
+
+(electric-indent-mode -1) 
 
 ;; bridge kill-ring <-> system clipboard when running emacs -nw (uses the
 ;; xclip binary, which talks to the X11 clipboard specifically -- not
@@ -586,7 +649,21 @@ Turned on/off automatically as dap-mode sessions start/end; see
             (lambda ()
               ;; First argument: decode output from Cursor's ACP process
               ;; Second argument: encode input sent to Cursor's ACP process
-              (set-buffer-process-coding-system 'utf-8-dos 'utf-8-dos))))
+              (set-buffer-process-coding-system 'utf-8-dos 'utf-8-dos)))
+
+  ;; desktop-save-mode can't literally resurrect the old ACP process (it's
+  ;; gone once Emacs exits), but it does save a buffer entry for it since
+  ;; it's not excluded by `desktop-modes-not-to-save'. Register a handler
+  ;; so desktop-read starts a fresh Cursor agent-shell in its place instead
+  ;; of just recreating an inert, disconnected buffer -- same trick
+  ;; eshell uses for its own desktop support. The conversation itself
+  ;; isn't restored, just the buffer existing again without a manual
+  ;; `agent-shell-cursor-start-agent' call.
+  (defun my/desktop-restore-agent-shell (_file-name _buffer-name _misc)
+    (agent-shell-cursor-start-agent)
+    (current-buffer))
+  (add-to-list 'desktop-buffer-mode-handlers
+               '(agent-shell-mode . my/desktop-restore-agent-shell)))
 (when (eq system-type 'windows-nt)
   ;; Fallback font specifically for unicode symbols without breaking your primary font
   (set-fontset-font t 'symbol (font-spec :family "Segoe UI Symbol")))
