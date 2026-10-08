@@ -4,11 +4,27 @@
              t)
 (package-initialize)
 
-(unless package-archive-contents
-  (package-refresh-contents))
+(defmacro my/with-elpa-keyring-recovery (&rest body)
+  "Run BODY, retrying once if it errors.
+GNU ELPA's signing key periodically expires, which makes any package
+operation fail with a signature-verification error. On error, disable
+signature checking just long enough to refresh the archives and pull
+in an updated `gnu-elpa-keyring-update', then let signature checking
+revert automatically and retry BODY."
+  `(condition-case err
+       (progn ,@body)
+     (error
+      (message "package operation failed (%s); refreshing ELPA keyring" err)
+      (let ((package-check-signature nil))
+        (package-refresh-contents)
+        (package-install 'gnu-elpa-keyring-update))
+      ,@body)))
 
-(unless (package-installed-p 'use-package)
-  (package-install 'use-package))
+(my/with-elpa-keyring-recovery
+ (unless package-archive-contents
+   (package-refresh-contents))
+ (unless (package-installed-p 'use-package)
+   (package-install 'use-package)))
 
 (require 'use-package)
 (setq use-package-always-ensure t)
@@ -102,7 +118,7 @@
 ;; clang-format: on demand only, bound to a key -- never automatic.
 ;; Reads .clang-format by walking up from the buffer's directory, same
 ;; as running the clang-format binary directly.
-(load "/usr/share/clang/clang-format.el")
+(use-package clang-format)
 (defun my/clang-format-buffer-or-region ()
   "Run clang-format on the active region, or the whole buffer otherwise."
   (interactive)
